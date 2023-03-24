@@ -1,5 +1,5 @@
-import { TodosAccess } from './todosAcess'
-import { AttachmentUtils } from './attachmentUtils';
+import { TodosAccess } from '../dataLayer/todosAcess'
+import { AttachmentUtils } from '../helpers/attachmentUtils';
 import { TodoItem } from '../models/TodoItem'
 import { CreateTodoRequest } from '../requests/CreateTodoRequest'
 import { UpdateTodoRequest } from '../requests/UpdateTodoRequest'
@@ -22,7 +22,7 @@ export async function getUserList(todoId: string): Promise<UserItem[]> {
     return await todosAccess.getUserList(todoId)
 }
 
-export async function toggleSharing(todoId: string, userId: string) {
+export async function toggleSharing(todoId: string, userId: string): Promise<boolean> {
     logger.info("sharing todo " + todoId + " with user " + userId)
     return await todosAccess.toggleSharing(todoId, userId)
 }

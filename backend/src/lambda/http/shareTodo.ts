@@ -4,7 +4,7 @@ import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda'
 import * as middy from 'middy'
 import { cors } from 'middy/middlewares'
 import { createLogger } from '../../utils/logger'
-import { toggleSharing } from '../../helpers/todos'
+import { toggleSharing } from '../../businessLogic/todos'
 
 const logger = createLogger('http shareTodos')
 
