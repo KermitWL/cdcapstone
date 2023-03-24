@@ -57,6 +57,22 @@ export async function patchTodo(
   })
 }
 
+export async function shareTodo(
+  idToken: string,
+  todoId: string,
+  userId: string
+): Promise<void> {
+  const requestBody = {
+    userId
+  }
+  await Axios.post(`${apiEndpoint}/todos/${todoId}/share`, JSON.stringify(requestBody), {
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${idToken}`
+    }
+  })
+}
+
 export async function deleteTodo(
   idToken: string,
   todoId: string

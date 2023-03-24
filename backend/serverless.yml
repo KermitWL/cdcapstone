@@ -38,8 +38,6 @@ functions:
   Auth:
     handler: src/lambda/auth/auth0Authorizer.handler
 
-  # Done TODO: Configure this function - 
-  # Provide iamRoleStatements property for performing Actions on DynamoDB
   GetTodos:
     handler: src/lambda/http/getTodos.handler
     events:
@@ -127,6 +125,7 @@ functions:
         Action:
           - dynamodb:UpdateItem
           - dynamodb:GetItem
+          - dynamodb:Query
         Resource: !GetAtt TodosTable.Arn 
       - Effect: Allow
         Action:
@@ -197,6 +196,7 @@ functions:
         Action:
           - dynamodb:UpdateItem
           - dynamodb:getItem
+          - dynamodb:Query
         Resource: !GetAtt TodosTable.Arn
       - Effect: Allow
         Action:
@@ -218,11 +218,15 @@ functions:
     events:
       - http:
           method: get
-          path: users
+          path: users/{todoId}
           cors: true
           authorizer: Auth
     iamRoleStatementsInherit: true
     iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:Query
+        Resource: !GetAtt TodosTable.Arn
       - Effect: Allow
         Action:
           - dynamodb:GetItem
@@ -241,6 +245,42 @@ functions:
           - xray:PutTraceSegments
         Resource:
           - '*'
+
+  ShareTodo:
+    handler: src/lambda/http/shareTodo.handler
+    events:
+      - http:
+          method: post
+          path: todos/{todoId}/share
+          cors: true
+          authorizer: Auth
+    iamRoleStatementsInherit: true
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:Query
+          - dynamodb:UpdateItem
+        Resource: !GetAtt TodosTable.Arn
+      - Effect: Allow
+        Action:
+          - dynamodb:GetItem
+          - dynamodb:UpdateItem
+        Resource: !GetAtt UsersTable.Arn
+      - Effect: Allow
+        Action:
+          - xray:GetSamplingRules
+          - xray:GetSamplingTargets
+          - xray:GetSamplingStatisticSummaries
+          - xray:BatchGetTraces
+          - xray:GetServiceGraph
+          - xray:GetTraceGraph
+          - xray:GetTraceSummaries
+          - xray:GetGroups
+          - xray:GetGroup
+          - xray:PutTraceSegments
+        Resource:
+          - '*'
+
 resources:
   Resources:
     GatewayResponseDefault4XX:

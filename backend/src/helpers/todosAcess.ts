@@ -57,7 +57,7 @@ export class TodosAccess {
                 return
             }
             logger.info("user " + JSON.stringify(result) + " is an owner of todoId " + todoId)
-
+    
             // remove todoId from list
             let todoList: string[] = result.Item["todoIds"]
             const index = todoList.indexOf(todoId)
@@ -66,7 +66,7 @@ export class TodosAccess {
                 return
             }
             todoList.splice(index, 1)
-
+    
             // update user item with new list
             const updateParams = {
                 TableName: this.usersTable,
@@ -178,13 +178,15 @@ export class TodosAccess {
     }
       
     async updateTodo(userId: string, todoId: string, todoUpdate: TodoUpdate) {
-        logger.info('updating Todo ' + todoId)
+        logger.info('updating Todo ' + todoId + " for user " + userId)
+
+        let item: TodoItem = await this.getTodo(todoId)
 
         const updateParams = {
             TableName: this.todosTable,
             Key: {
-                userId,
-                todoId
+                todoId,
+                createdAt: item.createdAt
             },
             UpdateExpression: 'set #name = :name, dueDate = :dueDate, done = :done',
             ExpressionAttributeNames: {
@@ -203,13 +205,15 @@ export class TodosAccess {
     }
 
     async updateAttachmentURL(userId: string, todoId: string, url: string) {
-        logger.info('adding Attachment URL ' + url + ' to Todo ' + todoId)
+        logger.info('adding Attachment URL ' + url + ' to Todo ' + todoId + " for user " + userId)
 
+        let item: TodoItem = await this.getTodo(todoId)
+        
         const updateParams = {
             TableName: this.todosTable,
             Key: {
-                userId,
-                todoId
+                todoId,
+                createdAt: item.createdAt
             },
             UpdateExpression: 'set attachmentUrl = :attachmentUrl',
             ExpressionAttributeValues: {
@@ -239,18 +243,27 @@ export class TodosAccess {
 
         // convert list from array of strings to array of JSON objects
         let returnList: UserItem[] = []
-        userList["users"].forEach((element: string) => {
-            // get user from UserTable, if user is ownder of todoId add it to return JSON object
 
+        for (const user of userList["users"]) {
+            // get user from UserTable, if user is owner of todoId add it to return JSON object
+            let todoIds = []
+            if (await this.isOwner(user, todoId)) {
+                todoIds.push(todoId)
+            }
             // add to return JSON object
             returnList.push({
-                userId: element,
-                todoIds: []
+                userId: user,
+                todoIds
             })
-        });
+        }
 
         logger.info("returning user list " + returnList)
         return returnList
+    }
+
+    async isOwner(userId: string, todoId: string): Promise<boolean> {
+        let item: TodoItem = await this.getTodo(todoId)
+        return item.owners.includes(userId);
     }
       
     async addUser(userId: string) {
@@ -310,5 +323,76 @@ export class TodosAccess {
             TableName: this.usersTable,
             Item: item
         }).promise()
+    }
+
+    async toggleSharing(todoId: string, userId: string) {
+        logger.info("toggling sharing for todo " + todoId + " for user " + userId)
+
+        // adapt owners in todo
+        let item = await this.getTodo(todoId)
+        if (item.owners.includes(userId)) {
+            item.owners.splice(item.owners.indexOf(userId), 1)
+            logger.info("removing " + userId + " from owner list for todo " + todoId)
+        } else {
+            item.owners.push(userId)
+            logger.info("adding " + userId + " to owner list for todo " + todoId)
+        }
+
+        const updateTodoParams = {
+            TableName: this.todosTable,
+            Key: {
+                todoId,
+                createdAt: item.createdAt
+            },
+            UpdateExpression: 'set #owners = :owners',
+            ExpressionAttributeNames: {
+                '#owners': 'owners'
+            },
+            ExpressionAttributeValues: {
+                ':owners': item.owners
+            }
+        }
+
+        await this.docClient.update(updateTodoParams).promise()
+
+        // adapt todoIds in user
+        logger.info("toggling " + todoId + " from todoId list for user " + userId)
+        const userParams = {
+            TableName: this.usersTable,
+            Key: {
+                userId
+            }
+        }
+        logger.info("userfind params: " + JSON.stringify(userParams))
+
+        const result = await this.docClient.get(userParams).promise()
+        logger.info("userfind params: " + JSON.stringify(result))
+        if (result.Item == undefined) {
+            logger.error("userId " + userId + " not found")
+            return
+        }
+        
+        // toggle sharing todoId from list
+        let todoList: string[] = result.Item["todoIds"]
+        const index = todoList.indexOf(todoId)
+        if (index == -1) {
+            todoList.push(todoId)
+            logger.info("adding " + todoId + " from todoId list for user " + userId)
+        } else {
+            todoList.splice(index, 1)
+            logger.info("removing " + todoId + " from todoId list for user " + userId)
+        }
+        
+        const updateUserParams = {
+            TableName: this.usersTable,
+            Key: {
+                userId
+            },
+            UpdateExpression: 'set todoIds = :todoIds',
+            ExpressionAttributeValues: {
+                ':todoIds': todoList
+            }
+        }
+        await this.docClient.update(updateUserParams).promise()
     }
 }

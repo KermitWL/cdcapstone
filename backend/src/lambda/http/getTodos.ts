@@ -27,9 +27,6 @@ export const handler = middy(
       }
     }
 
-    // strip userId from returned items as required in task description
-    //todos.forEach(element => delete element.userId)
-
     return {
       statusCode: 200,
       body: JSON.stringify({

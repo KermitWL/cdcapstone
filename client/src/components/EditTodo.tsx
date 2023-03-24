@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { Form, Button } from 'semantic-ui-react'
 import Auth from '../auth/Auth'
-import { getUploadUrl, uploadFile, getUsers } from '../api/todos-api'
+import { getUploadUrl, uploadFile, getUsers, shareTodo } from '../api/todos-api'
 import {
   Checkbox,
   Divider,
@@ -84,6 +84,10 @@ export class EditTodo extends React.PureComponent<
   }
 
   async componentDidMount() {
+    this.updateUsers()
+  }
+
+  async updateUsers() {
     try {
       const users = await getUsers(this.props.auth.getIdToken(), this.props.match.params.todoId)
       this.setState({
@@ -123,8 +127,8 @@ export class EditTodo extends React.PureComponent<
             <Grid.Row key={user.userId}>
               <Grid.Column width={1} verticalAlign="middle">
                 <Checkbox
-          //        onChange={() => this.onTodoCheck(pos)}
-                  checked={true}
+                  onChange={() => this.onTodoCheck(pos)}
+                  checked={user.todoIds && user.todoIds[0] == this.props.match.params.todoId}
                 />
               </Grid.Column>
               <Grid.Column width={10} verticalAlign="middle">
@@ -143,6 +147,25 @@ export class EditTodo extends React.PureComponent<
 
       </div>
     )
+  }
+
+  onTodoCheck = async (pos: number) => {
+    try {
+      const user = this.state.users[pos]
+      await shareTodo(this.props.auth.getIdToken(), this.props.match.params.todoId , user.userId)
+      this.setState({
+
+      })
+      this.updateUsers()
+      this.render()
+      // this.setState({
+      //   todos: update(this.state.todos, {
+      //     [pos]: { done: { $set: !todo.done } }
+      //   })
+      // })
+    } catch {
+      alert('Todo deletion failed')
+    }
   }
 
   renderButton() {

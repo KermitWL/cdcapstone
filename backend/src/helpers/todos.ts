@@ -22,6 +22,11 @@ export async function getUserList(todoId: string): Promise<UserItem[]> {
     return await todosAccess.getUserList(todoId)
 }
 
+export async function toggleSharing(todoId: string, userId: string) {
+    logger.info("sharing todo " + todoId + " with user " + userId)
+    return await todosAccess.toggleSharing(todoId, userId)
+}
+
 export async function createTodo(userId: string, request: CreateTodoRequest): Promise<TodoItem> {
     logger.info("creating new Todo for user: " + userId + " with content " + JSON.stringify(request))
 
