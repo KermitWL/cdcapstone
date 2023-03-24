@@ -1,7 +1,18 @@
 import * as React from 'react'
 import { Form, Button } from 'semantic-ui-react'
 import Auth from '../auth/Auth'
-import { getUploadUrl, uploadFile } from '../api/todos-api'
+import { getUploadUrl, uploadFile, getUsers } from '../api/todos-api'
+import {
+  Checkbox,
+  Divider,
+  Grid,
+  Header,
+  Icon,
+  Input,
+  Image,
+  Loader
+} from 'semantic-ui-react'
+import { User } from '../types/User'
 
 enum UploadState {
   NoUpload,
@@ -21,6 +32,7 @@ interface EditTodoProps {
 interface EditTodoState {
   file: any
   uploadState: UploadState
+  users: User[]
 }
 
 export class EditTodo extends React.PureComponent<
@@ -29,7 +41,8 @@ export class EditTodo extends React.PureComponent<
 > {
   state: EditTodoState = {
     file: undefined,
-    uploadState: UploadState.NoUpload
+    uploadState: UploadState.NoUpload,
+    users: []
   }
 
   handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -70,6 +83,19 @@ export class EditTodo extends React.PureComponent<
     })
   }
 
+  async componentDidMount() {
+    try {
+      const users = await getUsers(this.props.auth.getIdToken(), this.props.match.params.todoId)
+      this.setState({
+        file: undefined,
+        uploadState: UploadState.NoUpload,
+        users
+      })
+    } catch (e) {
+      alert(`Failed to fetch users: ${(e as Error).message}`)
+    }
+  }
+
   render() {
     return (
       <div>
@@ -88,6 +114,33 @@ export class EditTodo extends React.PureComponent<
 
           {this.renderButton()}
         </Form>
+
+        <h1>Share with other users</h1>
+
+        <Grid padded>
+        {this.state.users.map((user, pos) => {
+          return (
+            <Grid.Row key={user.userId}>
+              <Grid.Column width={1} verticalAlign="middle">
+                <Checkbox
+          //        onChange={() => this.onTodoCheck(pos)}
+                  checked={true}
+                />
+              </Grid.Column>
+              <Grid.Column width={10} verticalAlign="middle">
+                {user.userId}
+              </Grid.Column>
+              {/* {todo.attachmentUrl && (
+                <Image src={todo.attachmentUrl} size="small" wrapped />
+              )} */}
+              <Grid.Column width={16}>
+                <Divider />
+              </Grid.Column>
+            </Grid.Row>
+          )
+        })}
+      </Grid>
+
       </div>
     )
   }

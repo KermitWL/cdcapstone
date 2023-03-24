@@ -3,37 +3,29 @@ import 'source-map-support/register'
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda'
 import * as middy from 'middy'
 import { cors } from 'middy/middlewares'
-import { getTodosForUser as getTodosForUser } from '../../helpers/todos'
+import { getUserList as getUserList } from '../../helpers/todos'
 import { getUserId } from '../utils';
 import { createLogger } from '../../utils/logger'
 
-const logger = createLogger('http getTodos')
+const logger = createLogger('http getUsers')
 
 export const handler = middy(
   async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
     logger.info('Processing event: ', event)
 
     const userId = getUserId(event)
+    const todoId = event.pathParameters.todoId
     
-    logger.info("getting Todos for user " + userId)
+    logger.info("getting User list for user " + userId + " with todoId " + todoId)
 
-    const todos = await getTodosForUser(userId)
-    logger.info("returning todo list " + JSON.stringify(todos))
-
-    if (todos == undefined) {
-      return {
-        statusCode: 500,
-        body: ""
-      }
-    }
-
-    // strip userId from returned items as required in task description
-    //todos.forEach(element => delete element.userId)
+    const users = await getUserList(todoId)
+    
+    logger.info("returning User list " + JSON.stringify(users))
 
     return {
       statusCode: 200,
       body: JSON.stringify({
-        items: todos
+        items: users
       })
     }
   })

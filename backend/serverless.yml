@@ -1,6 +1,6 @@
 org: kermitorg
-app: serverless-todo-app
-service: serverless-todo-app
+app: serverless-todo-sharing-app
+service: serverless-todo-sharing-app
 
 plugins:
   - serverless-webpack
@@ -22,9 +22,11 @@ provider:
   # Use these variables in the functions and resouorces section below. For example, 
   # ${self:provider.environment.ATTACHMENT_S3_BUCKET}
   environment:
-    TODOS_TABLE: Todos-${self:provider.stage}
-    TODOS_CREATED_AT_INDEX: CreatedAtIndex
-    ATTACHMENT_S3_BUCKET: serverless-c4-todo-images-udakermit-${self:provider.stage}
+    TODOS_TABLE: Shared-Todos-${self:provider.stage}
+    USERS_TABLE: Shared-Todos-Users-${self:provider.stage}
+    USERS_LIST: Shared-Todos-Userlist-${self:provider.stage}
+    CREATED_AT_INDEX: CreatedAtIndex
+    ATTACHMENT_S3_BUCKET: serverless-c4-shared-todo-images-udakermit-${self:provider.stage}
     SIGNED_URL_EXPIRATION: 300
 
   logs:
@@ -50,8 +52,13 @@ functions:
     iamRoleStatements:
       - Effect: Allow
         Action:
+          - dynamodb:GetItem
           - dynamodb:Query
         Resource: !GetAtt TodosTable.Arn
+      - Effect: Allow
+        Action:
+          - dynamodb:GetItem
+        Resource: !GetAtt UsersTable.Arn
       - Effect: Allow
         Action:
           - dynamodb:Query
@@ -71,10 +78,6 @@ functions:
         Resource:
           - '*'
 
-  # done TODO: Configure this function - 
-  # Provide iamRoleStatements property. Decide the Actions and AWS Resource. 
-  # To refer to an AWS resource defined in the "Resources" section, you can use "Resource: !GetAtt <resource-name>.Arn"
-  # To validate incoming HTTP requests, we have provided the request schemas in function definition below. 
   CreateTodo:
     handler: src/lambda/http/createTodo.handler
     events:
@@ -94,11 +97,19 @@ functions:
         Resource: !GetAtt TodosTable.Arn
       - Effect: Allow
         Action:
+          - dynamodb:GetItem
+          - dynamodb:PutItem
+        Resource: !GetAtt UsersList.Arn
+      - Effect: Allow
+        Action:
+          - dynamodb:GetItem
+          - dynamodb:PutItem
+        Resource: !GetAtt UsersTable.Arn
+      - Effect: Allow
+        Action:
         - xray:PutTraceSegments
         Resource: "*"
 
-  # TODO: Configure this function
-  # Provide property for setting up CORS, Authorizer, iamRoleStatements, and request schemas
   UpdateTodo:
     handler: src/lambda/http/updateTodo.handler
     events:
@@ -115,7 +126,7 @@ functions:
       - Effect: Allow
         Action:
           - dynamodb:UpdateItem
-          - dynamodb:getItem
+          - dynamodb:GetItem
         Resource: !GetAtt TodosTable.Arn 
       - Effect: Allow
         Action:
@@ -132,8 +143,6 @@ functions:
         Resource:
           - '*'
 
-  # TODO: Configure this function
-  # Provide property for setting up CORS, Authorizer, iamRoleStatements
   DeleteTodo:
     handler: src/lambda/http/deleteTodo.handler
     events:
@@ -146,9 +155,14 @@ functions:
     iamRoleStatements:
       - Effect: Allow
         Action:
-          - dynamodb:GetItem
           - dynamodb:DeleteItem
+          - dynamodb:Query
         Resource: !GetAtt TodosTable.Arn 
+      - Effect: Allow
+        Action:
+          - dynamodb:GetItem
+          - dynamodb:UpdateItem
+        Resource: !GetAtt UsersTable.Arn 
       - Effect: Allow
         Action:
           - xray:GetSamplingRules
@@ -164,8 +178,6 @@ functions:
         Resource:
           - '*'
 
-  # TODO: Configure this function
-  # Provide property for setting up CORS, Authorizer, iamRoleStatements
   GenerateUploadUrl:
     handler: src/lambda/http/generateUploadUrl.handler
     events:
@@ -200,7 +212,35 @@ functions:
           - xray:PutTraceSegments
         Resource:
           - '*'
-
+  
+  GetUsers:
+    handler: src/lambda/http/getUsers.handler
+    events:
+      - http:
+          method: get
+          path: users
+          cors: true
+          authorizer: Auth
+    iamRoleStatementsInherit: true
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:GetItem
+        Resource: !GetAtt UsersList.Arn
+      - Effect: Allow
+        Action:
+          - xray:GetSamplingRules
+          - xray:GetSamplingTargets
+          - xray:GetSamplingStatisticSummaries
+          - xray:BatchGetTraces
+          - xray:GetServiceGraph
+          - xray:GetTraceGraph
+          - xray:GetTraceSummaries
+          - xray:GetGroups
+          - xray:GetGroup
+          - xray:PutTraceSegments
+        Resource:
+          - '*'
 resources:
   Resources:
     GatewayResponseDefault4XX:
@@ -214,33 +254,53 @@ resources:
         RestApiId:
           Ref: ApiGatewayRestApi
     
-    # done TODO: Create a DynamoDB table with local secondary index and a composite key
+    # DynamoDB tables
     TodosTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        AttributeDefinitions:
+          - AttributeName: todoId
+            AttributeType: S
+          - AttributeName: createdAt
+            AttributeType: S
+        KeySchema:
+          - AttributeName: todoId
+            KeyType: HASH
+          - AttributeName: createdAt
+            KeyType: RANGE
+        BillingMode: PAY_PER_REQUEST
+        TableName: ${self:provider.environment.TODOS_TABLE}
+        # LocalSecondaryIndexes:
+        #   - IndexName: ${self:provider.environment.CREATED_AT_INDEX}
+        #     KeySchema:
+        #       - AttributeName: todoId
+        #         KeyType: HASH
+        #     Projection:
+        #       ProjectionType: ALL # What attributes will be copied to an index
+
+    UsersTable:
       Type: AWS::DynamoDB::Table
       Properties:
         AttributeDefinitions:
           - AttributeName: userId
             AttributeType: S
-          - AttributeName: createdAt
-            AttributeType: S
-          - AttributeName: todoId
-            AttributeType: S
         KeySchema:
           - AttributeName: userId
             KeyType: HASH
-          - AttributeName: todoId
-            KeyType: RANGE
         BillingMode: PAY_PER_REQUEST
-        TableName: ${self:provider.environment.TODOS_TABLE}
-        LocalSecondaryIndexes:
-          - IndexName: ${self:provider.environment.TODOS_CREATED_AT_INDEX}
-            KeySchema:
-              - AttributeName: userId
-                KeyType: HASH
-              - AttributeName: createdAt
-                KeyType: RANGE
-            Projection:
-              ProjectionType: ALL # What attributes will be copied to an index
+        TableName: ${self:provider.environment.USERS_TABLE}
+    
+    UsersList:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        AttributeDefinitions:
+          - AttributeName: key
+            AttributeType: S
+        KeySchema:
+          - AttributeName: key
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
+        TableName: ${self:provider.environment.USERS_LIST}
 
 
     # done TODO: Complete the bucket properties below. 

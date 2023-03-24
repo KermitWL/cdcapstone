@@ -6,6 +6,7 @@ import { UpdateTodoRequest } from '../requests/UpdateTodoRequest'
 import { createLogger } from '../utils/logger'
 import * as uuid from 'uuid'
 import { TodoUpdate } from '../models/TodoUpdate';
+import { UserItem } from '../models/UserItem';
 
 const todosAccess = new TodosAccess()
 const attachmentUtils = new AttachmentUtils()
@@ -13,20 +14,32 @@ const logger = createLogger('Todos Business Logic')
 
 export async function getTodosForUser(userId: string): Promise<TodoItem[]> {
     logger.info("getting Todos for user " + userId)
-    return todosAccess.getAllTodosForUser(userId)
+    return await todosAccess.getAllTodosForUser(userId)
+}
+
+export async function getUserList(todoId: string): Promise<UserItem[]> {
+    logger.info("getting User list")
+    return await todosAccess.getUserList(todoId)
 }
 
 export async function createTodo(userId: string, request: CreateTodoRequest): Promise<TodoItem> {
     logger.info("creating new Todo for user: " + userId + " with content " + JSON.stringify(request))
-    
+
     const todoId = uuid.v4()
+
+    // store new user
+    await todosAccess.addUser(userId)
+
+    // add todo for user
+    await todosAccess.addTodoForUser(userId, todoId)
+
     const newItem: TodoItem = {
-        "userId": userId,
         "todoId": todoId,
         "createdAt": new Date().toISOString(),
         "name": request.name,
         "dueDate": request.dueDate,
         "done": false,
+        "owners": [userId],
         "attachmentUrl": undefined
     }
 
@@ -73,7 +86,7 @@ export async function createAttachmentPresignedUrlAndUpdateItem(todoId: string, 
 async function doesItemBelongToUser(todoId: string, userId: string): Promise<boolean> {
     logger.info("checking if todo item " + todoId + " belongs to user " + userId)
 
-    const item: TodoItem = await todosAccess.getTodo(userId, todoId)
+    const item: TodoItem = await todosAccess.getTodo(todoId)
     if (item == undefined) {
         logger.error("error getting todo item " + todoId)
         return false
@@ -81,5 +94,5 @@ async function doesItemBelongToUser(todoId: string, userId: string): Promise<boo
 
     logger.info("todo item " + todoId + " belongs to user " + userId)
 
-    return item.userId == userId
+    return item.owners.includes(userId)
 }
