@@ -16,7 +16,7 @@ export const handler = middy(
     const userId = getUserId(event)
     const todoId = event.pathParameters.todoId
     
-    logger.info("getting User list for user " + userId + " with todoId " + todoId)
+    logger.info("getting user list for user " + userId + " with todoId " + todoId)
 
     const users = await getUserList(todoId)
     

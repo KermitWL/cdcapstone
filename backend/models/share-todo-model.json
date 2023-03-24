@@ -1,0 +1,13 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "title": "share",
+    "type": "object",
+    "properties": {
+      "userId": {
+        "type": "string"
+      }
+    },
+    "required": ["userId"],
+    "additionalProperties": false
+  }
+  

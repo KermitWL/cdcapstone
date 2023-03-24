@@ -13,15 +13,23 @@ export const handler = middy(
     logger.info('Processing event: ', event)
 
     const todoId: string = event.pathParameters.todoId
-    const userId = JSON.parse(event.body)
+    const body = JSON.parse(event.body)
+    const userId = body["userId"]
     
-    logger.info("sharing todo " + todoId + " with user " + userId["userId"])
+    logger.info("sharing todo " + todoId + " with user " + userId)
 
-    await toggleSharing(todoId, userId["userId"])
+    const result = await toggleSharing(todoId, userId)
 
-    return {
-      statusCode: 200,
-      body: ""
+    if (result) {
+        return {
+            statusCode: 200,
+            body: ""
+        }
+    } else {
+        return {
+            statusCode: 400,
+            body: ""
+        }
     }
   })
 

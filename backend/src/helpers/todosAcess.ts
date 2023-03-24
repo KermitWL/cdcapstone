@@ -15,7 +15,6 @@ export class TodosAccess {
         private readonly todosTable: string = process.env.TODOS_TABLE,
         private readonly usersTable: string = process.env.USERS_TABLE,
         private readonly usersList: string = process.env.USERS_LIST,
-        //private readonly todosByUserIndex = process.env.TODOS_CREATED_AT_INDEX,
         private readonly userKey: string = "USERKEY"
     ) {}
     
@@ -23,26 +22,10 @@ export class TodosAccess {
         logger.info('deleting todo ' + todoId + " for user " + userId)
 
         // get hold of item to be deleted
-        const toDelete = await this.docClient.query({
-            TableName: this.todosTable,
-            KeyConditionExpression: "#todoId = :todoId",
-            ExpressionAttributeNames: {
-                "#todoId": "todoId"
-            },
-            ExpressionAttributeValues: {
-                ":todoId": todoId
-            }
-        }).promise()
+        const toDelete = await this.getTodo(todoId)
 
-        logger.info('item to delete: ' + JSON.stringify(toDelete))
-
-        if (toDelete.Items == undefined) {
-            logger.error("item for todoId " + todoId + " not found")
-            return
-        }
-
-        // get all owners of item and remove it
-        for (const owner of toDelete.Items[0].owners) {
+        // get all owners of item and remove it from their todos list
+        for (const owner of toDelete.owners) {
             // get user item for each owner
 
             const userParams = {
@@ -81,17 +64,17 @@ export class TodosAccess {
             await this.docClient.update(updateParams).promise()
         }
         
+        // now delete todo item in todos table
         const deleteParams = {
             TableName: this.todosTable,
             Key: {
                 todoId,
-                createdAt: toDelete.Items[0].createdAt
+                createdAt: toDelete.createdAt
             }
         }
 
         logger.info('delete params: ' + JSON.stringify(deleteParams))
 
-        // delete todo item
         await this.docClient.delete(deleteParams).promise();
     }
 
@@ -129,7 +112,6 @@ export class TodosAccess {
         logger.info('Getting all Todos for user ' + userId)
 
         // first get todo ids for user
-
         try {
             var getTodoIdsForUserParams = {
                 TableName: this.usersTable,
@@ -139,21 +121,19 @@ export class TodosAccess {
             }
 
             logger.info("starting query with params " + JSON.stringify(getTodoIdsForUserParams))
-
             const result = await this.docClient.get(getTodoIdsForUserParams).promise()
-            logger.info("got raw todos " + JSON.stringify(result))
-            let todoIdsForUser: TodoItem[] = [];
 
+
+            let todoIdsForUser: TodoItem[] = [];
+            // get all todo items owned by userId
             if (result.Item != undefined) {
                 const item = result.Item as UserItem
                 logger.info("got todos " + JSON.stringify(item))
 
                 // then get todoItems for the IDs
-
                 for (const todoId of item.todoIds) {
                     let todoItem = await this.getTodo(todoId)
                     todoIdsForUser.push(todoItem)
-                    logger.info("todosidsforuser now:\n" + JSON.stringify(todoIdsForUser))
                 }
             }
 
@@ -167,7 +147,7 @@ export class TodosAccess {
     }
 
     async createTodo(newTodo: TodoItem): Promise<TodoItem> {
-        logger.info('creating todo ' + JSON.stringify(newTodo))
+        logger.info("creating todo " + JSON.stringify(newTodo))
 
         await this.docClient.put({
             TableName: this.todosTable,
@@ -178,7 +158,7 @@ export class TodosAccess {
     }
       
     async updateTodo(userId: string, todoId: string, todoUpdate: TodoUpdate) {
-        logger.info('updating Todo ' + todoId + " for user " + userId)
+        logger.info("updating Todo " + todoId + " for user " + userId)
 
         let item: TodoItem = await this.getTodo(todoId)
 
@@ -201,11 +181,11 @@ export class TodosAccess {
 
         await this.docClient.update(updateParams).promise()
       
-        logger.info('Todo ' + todoId + ' was updated')
+        logger.info("Todo " + todoId + " was updated")
     }
 
     async updateAttachmentURL(userId: string, todoId: string, url: string) {
-        logger.info('adding Attachment URL ' + url + ' to Todo ' + todoId + " for user " + userId)
+        logger.info("adding Attachment URL " + url + " to Todo " + todoId + " for user " + userId)
 
         let item: TodoItem = await this.getTodo(todoId)
         
@@ -222,11 +202,12 @@ export class TodosAccess {
         }
         await this.docClient.update(updateParams).promise()
 
-        logger.info('Attachment URL ' + url + ' was added to Todo ' + todoId)
+        logger.info("Attachment URL " + url + " was added to Todo " + todoId)
     }
 
     async getUserList(todoId: string): Promise<UserItem[]> {
         logger.info("getting user list with todoId " + todoId)
+
         const result = await this.docClient.get({
             TableName: this.usersList,
             Key: {
@@ -245,12 +226,12 @@ export class TodosAccess {
         let returnList: UserItem[] = []
 
         for (const user of userList["users"]) {
-            // get user from UserTable, if user is owner of todoId add it to return JSON object
+            // get user from UserTable, if user is owner of todoId add it to list
             let todoIds = []
             if (await this.isOwner(user, todoId)) {
                 todoIds.push(todoId)
             }
-            // add to return JSON object
+            // add list to return JSON object
             returnList.push({
                 userId: user,
                 todoIds
@@ -278,7 +259,7 @@ export class TodosAccess {
 
         let newList = result.Item
 
-        // first user
+        // first user in system
         if (newList == undefined) {
             newList = {
                 key: this.userKey,
@@ -286,6 +267,7 @@ export class TodosAccess {
             }
         }
 
+        // if user is unknown so far, add it to list
         if (newList["users"].indexOf(userId) == -1) {
             newList["users"].push(userId)
         }
@@ -315,17 +297,15 @@ export class TodosAccess {
             }
         }
         
-        logger.info('user' + userId + ' previously owned ' + JSON.stringify(item))
         item.todoIds.push(todoId)
-        logger.info('user' + userId + ' now owns ' + JSON.stringify(item))
-
+        
         await this.docClient.put({
             TableName: this.usersTable,
             Item: item
         }).promise()
     }
 
-    async toggleSharing(todoId: string, userId: string) {
+    async toggleSharing(todoId: string, userId: string): Promise <boolean> {
         logger.info("toggling sharing for todo " + todoId + " for user " + userId)
 
         // adapt owners in todo
@@ -366,10 +346,10 @@ export class TodosAccess {
         logger.info("userfind params: " + JSON.stringify(userParams))
 
         const result = await this.docClient.get(userParams).promise()
-        logger.info("userfind params: " + JSON.stringify(result))
+        logger.info("found user: " + JSON.stringify(result))
         if (result.Item == undefined) {
             logger.error("userId " + userId + " not found")
-            return
+            return false
         }
         
         // toggle sharing todoId from list
@@ -394,5 +374,7 @@ export class TodosAccess {
             }
         }
         await this.docClient.update(updateUserParams).promise()
+
+        return true
     }
 }

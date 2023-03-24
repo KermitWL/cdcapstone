@@ -19,8 +19,6 @@ provider:
     lambda: true
     apiGateway: true
 
-  # Use these variables in the functions and resouorces section below. For example, 
-  # ${self:provider.environment.ATTACHMENT_S3_BUCKET}
   environment:
     TODOS_TABLE: Shared-Todos-${self:provider.stage}
     USERS_TABLE: Shared-Todos-Users-${self:provider.stage}
@@ -254,6 +252,9 @@ functions:
           path: todos/{todoId}/share
           cors: true
           authorizer: Auth
+          request:
+            schema:
+              application/json: ${file(models/share-todo-model.json)}
     iamRoleStatementsInherit: true
     iamRoleStatements:
       - Effect: Allow
@@ -310,13 +311,6 @@ resources:
             KeyType: RANGE
         BillingMode: PAY_PER_REQUEST
         TableName: ${self:provider.environment.TODOS_TABLE}
-        # LocalSecondaryIndexes:
-        #   - IndexName: ${self:provider.environment.CREATED_AT_INDEX}
-        #     KeySchema:
-        #       - AttributeName: todoId
-        #         KeyType: HASH
-        #     Projection:
-        #       ProjectionType: ALL # What attributes will be copied to an index
 
     UsersTable:
       Type: AWS::DynamoDB::Table
@@ -342,9 +336,6 @@ resources:
         BillingMode: PAY_PER_REQUEST
         TableName: ${self:provider.environment.USERS_LIST}
 
-
-    # done TODO: Complete the bucket properties below. 
-    # Do not forget to add the CorsConfiguration propoerty
     AttachmentsBucket:
       Type: AWS::S3::Bucket
       Properties:
@@ -363,8 +354,6 @@ resources:
                 - HEAD
               MaxAge: 3000
 
-    # done TODO: Complete the policy below and attach it to the bucket defined above
-    # For cross referencing the name of the bucket, use "!Ref AttachmentsBucket"
     BucketPolicy:
       Type: AWS::S3::BucketPolicy
       Properties:
